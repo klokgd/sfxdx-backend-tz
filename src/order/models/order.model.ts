@@ -1,7 +1,11 @@
-import { Column, Model, Table } from 'sequelize-typescript';
+import { Column, Model, PrimaryKey, Table } from 'sequelize-typescript';
 
 @Table
 export class Order extends Model {
+  @PrimaryKey
+  @Column({ type: 'BIGINT' })
+  id: number;
+
   @Column
   tokenA: string;
 
@@ -19,4 +23,6 @@ export class Order extends Model {
 
   @Column({ defaultValue: true })
   isActive: boolean;
+
+  isMarket: boolean;
 }

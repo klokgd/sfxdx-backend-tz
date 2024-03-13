@@ -4,6 +4,7 @@ import { AppService } from './app.service';
 import { OrderModule } from './order/order.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
+import { Order } from './order/models/order.model';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { SequelizeModule } from '@nestjs/sequelize';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
-        models: [],
+        models: [Order],
       }),
     }),
   ],

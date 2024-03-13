@@ -1,15 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ethers } from 'ethers';
+// import { ethers } from 'ethers';
 import * as abiContract from '../libs/api.json';
 import { InjectModel } from '@nestjs/sequelize';
 import { Order } from './models/order.model';
 import { IOrderDTO } from './dto/order.dto';
+import Web3, { Contract } from 'web3';
+import { IMatchedOrderDto } from './dto/matchedOrder.dto';
 
 @Injectable()
 export class OrderService implements OnModuleInit {
-  private readonly provider: ethers.JsonRpcProvider;
-  private readonly contract: ethers.Contract;
+  private readonly contract: Contract<any>;
 
   constructor(
     private readonly configService: ConfigService,
@@ -18,12 +19,15 @@ export class OrderService implements OnModuleInit {
     const infuraApiKey = this.configService.get('INFURA_API_KEY');
     const network = this.configService.get('NETWORK');
     const contractAddress = this.configService.get('CONTRACT_ADDRESS');
-    this.provider = new ethers.InfuraProvider(network, infuraApiKey);
-    this.contract = new ethers.Contract(
-      contractAddress,
-      abiContract,
-      this.provider,
-    );
+    const infuraEndpoint = `wss://${network}.infura.io/ws/v3/${infuraApiKey}`;
+    const web3 = new Web3(new Web3.providers.WebsocketProvider(infuraEndpoint));
+    this.contract = new web3.eth.Contract(abiContract, contractAddress);
+    // this.provider = new ethers.InfuraProvider(network, infuraApiKey);
+    // this.contract = new ethers.Contract(
+    //   contractAddress,
+    //   abiContract,
+    //   this.provider,
+    // );
   }
 
   onModuleInit() {
@@ -31,16 +35,80 @@ export class OrderService implements OnModuleInit {
   }
 
   private async listenToEvents() {
-    this.contract.on('OrderCreated', (order: any) => {
-      console.log('Order created:', order);
+    this.contract.events.OrderCreated().on('connected', () => {
+      console.log('OrderCreated event connected');
+    });
+    this.contract.events.OrderCreated().on('data', (event) => {
+      const eventData = event.returnValues as unknown as IOrderDTO;
+
+      this.createOrder(eventData);
     });
 
-    this.contract.on('OrderMatched', (order: any) => {
-      console.log('Order matched:', order);
+    this.contract.events.OrderMatched().on('connected', () => {
+      console.log('OrderMatched event connected');
+    });
+    this.contract.events.OrderMatched().on('data', (event) => {
+      const eventData: IMatchedOrderDto =
+        event.returnValues as unknown as IMatchedOrderDto;
+      this.matchOrder(eventData);
     });
 
-    this.contract.on('OrderCancelled', (order: any) => {
-      console.log('Order cancelled:', order);
+    this.contract.events.OrderCancelled().on('connected', () => {
+      console.log('OrderCancelled event connected');
+    });
+    this.contract.events.OrderCancelled().on('data', (event) => {
+      const eventData = event.returnValues as unknown as { id: string };
+      this.cancelOrder(eventData.id);
+    });
+
+    // this.contract.on('OrderMatched', (order: any) => {
+    //   console.log('Order matched:', order);
+    // });
+
+    // this.contract.on('OrderCancelled', (order: any) => {
+    //   console.log('Order cancelled:', order);
+    // });
+  }
+
+  async cancelOrder(id: string): Promise<void> {
+    const order = await this.orderModel.findOne({ where: { id: id } });
+
+    if (!order) {
+      throw new Error(`Order with id ${id} not found in the database`);
+    }
+
+    order.isActive = false;
+    await order.save();
+  }
+
+  async matchOrder(matchedOrder: IMatchedOrderDto): Promise<void> {
+    const { id, amountLeftToFill } = matchedOrder;
+
+    const order = await this.orderModel.findOne({ where: { id: id } });
+
+    if (!order) {
+      throw new Error(`Order with id ${id} not found in the database`);
+    }
+
+    order.amountA = amountLeftToFill;
+
+    if (amountLeftToFill === 0) {
+      order.isActive = false;
+    }
+
+    await order.save();
+  }
+
+  async createOrder(order: IOrderDTO): Promise<void> {
+    const { id, amountA, amountB, tokenA, tokenB, user, isMarket } = order;
+    this.orderModel.create({
+      id: id,
+      amountA: amountA,
+      amountB: amountB,
+      tokenA: tokenA,
+      tokenB: tokenB,
+      user: user,
+      isMarket: isMarket,
     });
   }
 
