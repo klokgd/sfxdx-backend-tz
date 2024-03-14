@@ -22,12 +22,6 @@ export class OrderService implements OnModuleInit {
     const infuraEndpoint = `wss://${network}.infura.io/ws/v3/${infuraApiKey}`;
     const web3 = new Web3(new Web3.providers.WebsocketProvider(infuraEndpoint));
     this.contract = new web3.eth.Contract(abiContract, contractAddress);
-    // this.provider = new ethers.InfuraProvider(network, infuraApiKey);
-    // this.contract = new ethers.Contract(
-    //   contractAddress,
-    //   abiContract,
-    //   this.provider,
-    // );
   }
 
   onModuleInit() {
@@ -60,14 +54,6 @@ export class OrderService implements OnModuleInit {
       const eventData = event.returnValues as unknown as { id: string };
       this.cancelOrder(eventData.id);
     });
-
-    // this.contract.on('OrderMatched', (order: any) => {
-    //   console.log('Order matched:', order);
-    // });
-
-    // this.contract.on('OrderCancelled', (order: any) => {
-    //   console.log('Order cancelled:', order);
-    // });
   }
 
   async cancelOrder(id: string): Promise<void> {
